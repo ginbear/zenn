@@ -76,6 +76,86 @@ kubectl logs -n kube-system deployment/sealed-secrets-controller --tail=100 \
 | `no key could decrypt secret` | 暗号化に使ったキーが存在しない |
 | `already exists and is not managed by SealedSecret` | 同名の Secret が手動作成されている |
 
+## `no key could decrypt secret` の詳細
+
+このエラーで何が起きてるのか整理しました。
+
+### SealedSecrets の仕組み
+
+```mermaid
+flowchart LR
+    subgraph ローカル
+        A[平文 Secret] -->|公開鍵で暗号化| B[SealedSecret]
+    end
+    subgraph クラスター
+        C[SealedSecret] -->|秘密鍵で復号| D[Secret]
+    end
+    B -->|Git/ArgoCD| C
+```
+
+- **公開鍵**: SealedSecret を作成する時に使用（`kubeseal --fetch-cert` で取得）
+- **秘密鍵**: Controller がクラスター内に保持し、復号に使用
+- 公開鍵と秘密鍵はペア。対応する秘密鍵がないと復号できない
+
+### エラーが発生するケース
+
+秘密鍵がローテーションまたは消失すると、古い公開鍵で暗号化された SealedSecret は復号できなくなります。
+
+```mermaid
+flowchart LR
+    subgraph 過去
+        A[平文] -->|公開鍵Aで暗号化| B[SealedSecret]
+    end
+    subgraph 現在のクラスター
+        C[SealedSecret] -->|秘密鍵Bで復号| D[❌ 失敗]
+    end
+    B -.->|秘密鍵Aは消失| C
+```
+
+**結果**: `no key could decrypt secret` エラーが発生し、Secret は生成されない
+
+### 孤立した SealedSecret の特定
+
+復号できない SealedSecret が実際に使われているか確認するには:
+
+```bash
+# 1. Secret が存在するか確認
+kubectl get secret <secret-name> -n <namespace>
+
+# 2. 参照しているワークロードがあるか確認
+kubectl get deploy,statefulset,cronjob -n <namespace> -o yaml | grep <secret-name>
+```
+
+どこからも参照されていなければ、削除しても問題ありません。
+
+## `already exists and is not managed by SealedSecret` の詳細
+
+このエラーは、SealedSecret が Secret を作成しようとした際に、同名の Secret が既に存在し、かつ SealedSecret の管理下にない場合に発生します。
+
+### 正常な状態
+
+```mermaid
+flowchart LR
+    subgraph クラスター
+        A[SealedSecret] -->|復号・作成| B[Secret]
+        B -.-|ownerReference| A
+    end
+```
+
+SealedSecret が作成した Secret には `ownerReference` が設定され、SealedSecret の管理下に入ります。
+
+### エラーが発生するケース
+
+```mermaid
+flowchart LR
+    subgraph クラスター
+        A[SealedSecret] -->|作成しようとする| B[❌ 失敗]
+        C[既存の Secret<br/>手動作成] -.-|ownerReference なし| B
+    end
+```
+
+**結果**: `failed update: Resource "xxx" already exists and is not managed by SealedSecret` エラーが発生
+
 ## kubectl で Status を表示する
 
 Sealed Secrets の公式 `controller.yaml` には `additionalPrinterColumns` が含まれていないため、`kubectl get sealedsecrets` で Status 列が表示されません。
