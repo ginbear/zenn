@@ -4,6 +4,7 @@ emoji: "🤖"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["claudecode", "cli", "mac", "obsidian"]
 published: true
+publication_name: "atrae"
 ---
 
 ## はじめに
