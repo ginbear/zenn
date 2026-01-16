@@ -8,6 +8,7 @@ topics:
   - "kustomize"
   - "datadog"
 published: true
+publication_name: "atrae"
 ---
 
 ## はじめに
