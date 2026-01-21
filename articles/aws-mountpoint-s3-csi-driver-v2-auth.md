@@ -9,7 +9,7 @@ publication_name: "atrae"
 
 ## 概要
 
-EKS Addon の `aws-mountpoint-s3-csi-driver` を v1.x から v2.x にアップグレードしたときに対応が必要だったものを記事にする
+EKS Addon の `aws-mountpoint-s3-csi-driver` を v1.x から v2.x にアップグレードしたときに対応が必要だったものを記事にまとめる
 
 ## v2 の主な変更点
 
@@ -19,13 +19,13 @@ v2 ではアーキテクチャと認証方式に大きな変更がある。
 
 v2 では Mountpoint プロセスがホスト上の systemd ではなく、**専用の Kubernetes Pod** として動作するようになった。
 
-[UPGRADING_TO_V2.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md) より:
+[公式アップグレードドキュメント](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md) より:
 
 > Prior to v2, Mountpoint processes were spawned on the host using systemd, with v2, Mountpoint processes will be spawned on dedicated and unprivileged Mountpoint Pods.
 
 #### 変更の目的
 
-この変更の主な目的は以下の通り（[Issue #504](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504) より）:
+この変更の主な目的は以下の通り（[設計 Issue](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504) より）:
 
 1. **SELinux 対応**: SELinux が有効な環境（ROSA など）での動作をサポート
 2. **リソース分離**: 専用の unprivileged Pod で動作することで、ワークロードの分離が向上
@@ -80,7 +80,7 @@ Caused by: No signing credentials available
 
 **原因**: v2 ではデフォルトで CSI ドライバーの SA が使われるため、ワークロード Pod の IRSA が使われなくなった。
 
-**解決策**: PersistentVolume の `volumeAttributes` に `authenticationSource: pod` を追加する。
+**解決策**: PersistentVolume の `volumeAttributes` に `authenticationSource: pod` を追加する（[設定リファレンス](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/CONFIGURATION.md)）。
 
 ```yaml
 apiVersion: v1
@@ -95,6 +95,10 @@ spec:
       bucketName: my-bucket
       authenticationSource: pod  # これを追加
 ```
+
+:::message
+`authenticationSource: pod` を使用する場合、ワークロード Pod の ServiceAccount に IRSA が設定されている必要がある。Pod の `spec.serviceAccountName` に IRSA 対応の ServiceAccount を指定すること。
+:::
 
 ### 問題 2: Mountpoint Pod のスケジュール失敗
 
@@ -117,78 +121,11 @@ CSI driver が Mountpoint Pod を同じノードに作成しようとする
 マウント失敗
 ```
 
-**解決策例**: VPC CNI の Prefix Delegation を有効化して Pod 上限を引き上げる。
+**解決策例**:
 
-### 問題 3: authenticationSource: pod 設定時の IAM 権限不足
-
-`authenticationSource: pod` を設定しても、以下のエラーが発生する場合がある。
-
-```
-MountVolume.SetUp failed for volume "xxx-pv" : rpc error: code = Internal desc =
-Failed to create S3 client
-Caused by:
-    0: initial ListObjectsV2 failed for bucket xxx in region ap-northeast-1
-    1: Client error
-    2: Forbidden: User: arn:aws:sts::xxx:assumed-role/xxx-irsa-role/...
-       is not authorized to perform: s3:ListBucket on resource: "arn:aws:s3:::xxx"
-       because no identity-based policy allows the s3:ListBucket action
-```
-
-**原因**: `authenticationSource: pod` を設定すると、ワークロード Pod の ServiceAccount（IRSA）が使われるが、その IAM ロールに S3 バケットへの必要な権限がない。v1 では動作していたケースでも、v2 では Mountpoint が初期化時に `s3:ListBucket` を実行するため、この権限が必須になっている。
-
-**解決策**: ワークロード Pod の ServiceAccount に紐づく IAM ロールに、S3 バケットへの適切な権限を付与する。
-
-```json
-{
-  "Effect": "Allow",
-  "Action": [
-    "s3:ListBucket"
-  ],
-  "Resource": "arn:aws:s3:::<bucket-name>"
-},
-{
-  "Effect": "Allow",
-  "Action": [
-    "s3:GetObject",
-    "s3:PutObject",
-    "s3:DeleteObject"
-  ],
-  "Resource": "arn:aws:s3:::<bucket-name>/*"
-}
-```
-
-### 問題 4: Terraform で EKS Addon の IRSA 設定を削除できない
-
-`authenticationSource: pod` への移行に伴い、EKS Addon 自体の IRSA（`service_account_role_arn`）を削除しようとすると、以下のエラーが発生する。
-
-```
-Error: updating EKS Add-On (xxx:aws-mountpoint-s3-csi-driver):
-operation error EKS: UpdateAddon, https response error StatusCode: 403,
-api error AccessDeniedException: Cross-account pass role is not allowed.
-```
-
-**原因**: Terraform AWS Provider の既知のバグ（[GitHub Issue #30645](https://github.com/hashicorp/terraform-provider-aws/issues/30645)）。
-
-Provider が `service_account_role_arn` を削除する際に空文字 `""` を送信するが、AWS API はフィールド自体を省略することを期待している。
-
-```json
-// Terraform が送信するリクエスト
-{"serviceAccountRoleArn": ""}  // ← 空文字
-
-// AWS API が期待する形式
-{}  // ← フィールド自体を省略
-```
-
-**解決策**: AWS CLI で事前に更新する。`--service-account-role-arn` を指定しないことで、フィールドが省略される。
-
-```bash
-aws eks update-addon \
-  --cluster-name <cluster-name> \
-  --addon-name aws-mountpoint-s3-csi-driver \
-  --resolve-conflicts OVERWRITE
-```
-
-実行後、`terraform plan` で差分がないことを確認する。
+- **VPC CNI の Prefix Delegation を有効化**: Pod 上限を大幅に引き上げる
+- **より大きなインスタンスタイプを使用**: ENI 数が増えるため Pod 上限も上がる
+- **`max-pods` 設定の確認**: カスタム設定で制限されている場合は見直す
 
 ## PV/PVC の再作成
 
@@ -254,9 +191,3 @@ kubectl apply -k <path-to-kustomization>
 kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes}'
 ```
 
-## 参考
-
-- [UPGRADING_TO_V2.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md)
-- [CONFIGURATION.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/CONFIGURATION.md)
-- [Issue #504 - Mountpoint for Amazon S3 CSI Driver v2](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504)
-- [terraform-provider-aws Issue #30645 - aws_eks_addon cannot remove value for service_account_role_arn](https://github.com/hashicorp/terraform-provider-aws/issues/30645)
