@@ -9,7 +9,7 @@ publication_name: "atrae"
 
 ## Prefix Delegation とは
 
-AWS VPC CNI の機能で、EKS ノードあたりの Pod 数上限を大幅に引き上げることができる。
+[AWS VPC CNI の機能](https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses.html)で、EKS ノードあたりの Pod 数上限を大幅に引き上げることができる。
 
 ## なぜ Pod 数に上限があるのか
 
@@ -33,7 +33,7 @@ EC2 インスタンス (m7i.large)
 
 ### インスタンスタイプごとの制限
 
-ENI 数と各 ENI に割り当て可能な IP 数はインスタンスタイプで決まっている。
+ENI 数と各 ENI に割り当て可能な IP 数は[インスタンスタイプで決まっている](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html#AvailableIpPerENI)。
 
 | インスタンス | 最大 ENI 数 | ENI あたり IP 数 | 最大 Pod 数 |
 |-------------|------------|-----------------|-------------|
@@ -102,7 +102,7 @@ Pod 起動 → /28 (16 IP) をブロックで確保
 | 17 | 17 IP 消費 | 32 IP 予約 (16×2) |
 | 30 | 30 IP 消費 | 32 IP 予約 (16×2) |
 
-Pod 密度が高い（ノードあたり多くの Pod が動いている）環境では、Prefix Delegation でも効率よく IP が使われる。
+Pod 密度が高い（ノードあたり多くの Pod が動いている）環境では、Prefix Delegation でも効率よく IP が使われる。詳細は [EKS Best Practices - Prefix Mode](https://aws.github.io/aws-eks-best-practices/networking/prefix-mode/index_linux/) を参照。
 
 ## サブネットの IP 枯渇リスク
 
@@ -139,8 +139,3 @@ aws eks describe-nodegroup \
 
 小さいサブネット (/24 など) を使っている場合は、IP 枯渇に注意。
 
-## 参考
-
-- [Assign more IP addresses to Amazon EKS nodes with prefixes](https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses.html)
-- [Prefix Mode for Linux - EKS Best Practices](https://aws.github.io/aws-eks-best-practices/networking/prefix-mode/index_linux/)
-- [Prefix Delegation - EKS Workshop](https://www.eksworkshop.com/docs/networking/vpc-cni/prefix/)

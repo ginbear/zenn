@@ -9,7 +9,7 @@ publication_name: "atrae"
 
 ## 概要
 
-EKS Addon の `aws-mountpoint-s3-csi-driver` を v1.x から v2.x にアップグレードしたときに対応が必要だったものを記事にする
+EKS Addon の `aws-mountpoint-s3-csi-driver` を v1.x から v2.x にアップグレードしたときに対応が必要だったものを記事にまとめる
 
 ## v2 の主な変更点
 
@@ -19,13 +19,13 @@ v2 ではアーキテクチャと認証方式に大きな変更がある。
 
 v2 では Mountpoint プロセスがホスト上の systemd ではなく、**専用の Kubernetes Pod** として動作するようになった。
 
-[UPGRADING_TO_V2.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md) より:
+[公式アップグレードドキュメント](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md) より:
 
 > Prior to v2, Mountpoint processes were spawned on the host using systemd, with v2, Mountpoint processes will be spawned on dedicated and unprivileged Mountpoint Pods.
 
 #### 変更の目的
 
-この変更の主な目的は以下の通り（[Issue #504](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504) より）:
+この変更の主な目的は以下の通り（[設計 Issue](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504) より）:
 
 1. **SELinux 対応**: SELinux が有効な環境（ROSA など）での動作をサポート
 2. **リソース分離**: 専用の unprivileged Pod で動作することで、ワークロードの分離が向上
@@ -80,7 +80,7 @@ Caused by: No signing credentials available
 
 **原因**: v2 ではデフォルトで CSI ドライバーの SA が使われるため、ワークロード Pod の IRSA が使われなくなった。
 
-**解決策**: PersistentVolume の `volumeAttributes` に `authenticationSource: pod` を追加する。
+**解決策**: PersistentVolume の `volumeAttributes` に `authenticationSource: pod` を追加する（[設定リファレンス](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/CONFIGURATION.md)）。
 
 ```yaml
 apiVersion: v1
@@ -95,6 +95,10 @@ spec:
       bucketName: my-bucket
       authenticationSource: pod  # これを追加
 ```
+
+:::message
+`authenticationSource: pod` を使用する場合、ワークロード Pod の ServiceAccount に IRSA が設定されている必要がある。Pod の `spec.serviceAccountName` に IRSA 対応の ServiceAccount を指定すること。
+:::
 
 ### 問題 2: Mountpoint Pod のスケジュール失敗
 
@@ -117,7 +121,11 @@ CSI driver が Mountpoint Pod を同じノードに作成しようとする
 マウント失敗
 ```
 
-**解決策例**: VPC CNI の Prefix Delegation を有効化して Pod 上限を引き上げる。
+**解決策例**:
+
+- **VPC CNI の Prefix Delegation を有効化**: Pod 上限を大幅に引き上げる
+- **より大きなインスタンスタイプを使用**: ENI 数が増えるため Pod 上限も上がる
+- **`max-pods` 設定の確認**: カスタム設定で制限されている場合は見直す
 
 ## PV/PVC の再作成
 
@@ -183,8 +191,3 @@ kubectl apply -k <path-to-kustomization>
 kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes}'
 ```
 
-## 参考
-
-- [UPGRADING_TO_V2.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/UPGRADING_TO_V2.md)
-- [CONFIGURATION.md](https://github.com/awslabs/mountpoint-s3-csi-driver/blob/main/docs/CONFIGURATION.md)
-- [Issue #504 - Mountpoint for Amazon S3 CSI Driver v2](https://github.com/awslabs/mountpoint-s3-csi-driver/issues/504)
