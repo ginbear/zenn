@@ -3,13 +3,15 @@ title: "EKS の Prefix Delegation で Pod 数上限を引き上げる"
 emoji: "🌐"
 type: "tech"
 topics: ["aws", "eks", "kubernetes", "vpc"]
-published: false
+published: true
 publication_name: "atrae"
 ---
 
 ## Prefix Delegation とは
 
 [AWS VPC CNI の機能](https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses.html)で、EKS ノードあたりの Pod 数上限を大幅に引き上げることができる。
+
+私の場合は [aws-mountpoint-s3-csi-driver v2 へのアップグレード](https://zenn.dev/atrae/articles/aws-mountpoint-s3-csi-driver-v2-auth)で Pod 数上限に引っかかったことがきっかけで Prefix Delegation を有効化した。
 
 Pod 数上限が上がることで、1 ノードあたりの Pod 収容効率が向上し、より少ないノード数で同じワークロードを運用できる可能性がある。結果としてコスト削減にも繋がる。
 
@@ -183,9 +185,7 @@ addons:
         WARM_PREFIX_TARGET: "1"
 ```
 
-## 適用手順
-
-### 注意: 既存ノードには適用されない
+## 注意: 既存ノードには適用されない
 
 Prefix Delegation の設定は**新規ノードにのみ適用**される。既存ノードは再作成が必要。
 

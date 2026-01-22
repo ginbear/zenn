@@ -3,7 +3,7 @@ title: "aws-mountpoint-s3-csi-driver v2 アップグレードに関する備忘�
 emoji: "🪣"
 type: "tech"
 topics: ["aws", "eks", "kubernetes", "s3"]
-published: false
+published: true
 publication_name: "atrae"
 ---
 
@@ -123,9 +123,13 @@ CSI driver が Mountpoint Pod を同じノードに作成しようとする
 
 **解決策例**:
 
-- **VPC CNI の Prefix Delegation を有効化**: Pod 上限を大幅に引き上げる
+- **VPC CNI の Prefix Delegation を有効化**: Pod 上限を大幅に引き上げる（[詳細記事](https://zenn.dev/atrae/articles/eks-vpc-cni-prefix-delegation)）
 - **より大きなインスタンスタイプを使用**: ENI 数が増えるため Pod 上限も上がる
 - **`max-pods` 設定の確認**: カスタム設定で制限されている場合は見直す
+
+:::message
+Prefix Delegation の仕組みや設定方法については [EKS の Prefix Delegation で Pod 数上限を引き上げる](https://zenn.dev/atrae/articles/eks-vpc-cni-prefix-delegation) もご参照ください。私は Prefix Delegation 有効化で対応したためそのことも記事にしました。
+:::
 
 ## PV/PVC の再作成
 
