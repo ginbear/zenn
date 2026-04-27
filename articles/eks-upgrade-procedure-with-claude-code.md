@@ -2,7 +2,7 @@
 title: "K8s アップグレード手順書を毎回ふりかえりで改善し続けた話"
 emoji: "📋"
 type: "tech"
-topics: ["claudecode", "kubernetes", "eks", "sre"]
+topics: ["claudecode", "kubernetes", "eks", "sre", "harnessengineering"]
 published: true
 publication_name: "atrae"
 ---
